@@ -53,6 +53,11 @@ window.__ModuleLoader__.load({
       refreshing: '刷新中…',
       search: '搜索模型',
       onlyEnabled: '只看已启用',
+      displayName: '名称',
+      displayNameHint: '在选择器和输入框里显示的名称',
+      visionOn: '可识图',
+      visionOff: '纯文本',
+      visionHint: '关掉后该模型不再声明图片输入，read_image 会拒绝，但请求体更小',
       context: '上下文',
       maxTokens: '输出上限',
       effort: '默认思考档',
@@ -129,6 +134,11 @@ window.__ModuleLoader__.load({
       refreshing: 'Refreshing…',
       search: 'Search models',
       onlyEnabled: 'Enabled only',
+      displayName: 'Name',
+      displayNameHint: 'Shown in the selector and composer',
+      visionOn: 'Reads images',
+      visionOff: 'Text only',
+      visionHint: 'Off: the model stops declaring image input; read_image refuses and requests stay smaller',
       context: 'Context',
       maxTokens: 'Max output',
       effort: 'Default effort',
@@ -672,6 +682,24 @@ window.__ModuleLoader__.load({
                   ),
                   openModel === model.id
                     ? h('div', { className: 'mrel-model-over' },
+                        h(Field, { label: t('displayName'), hint: t('displayNameHint') },
+                          h('input', {
+                            className: 'mrel-input',
+                            defaultValue: model.name ?? '',
+                            onBlur: (e) => {
+                              const next = e.target.value.trim()
+                              if (next === '' || next === model.name) return
+                              saveModel(model.id, { name: next })
+                            },
+                          }),
+                        ),
+                        h(Field, { label: t('vision'), hint: t('visionHint') },
+                          h(Switch, {
+                            checked: Array.isArray(model.input) && model.input.includes('image'),
+                            label: Array.isArray(model.input) && model.input.includes('image') ? t('visionOn') : t('visionOff'),
+                            onChange: (next) => saveModel(model.id, { input: next ? ['text', 'image'] : ['text'] }),
+                          }),
+                        ),
                         h(Field, { label: t('context') },
                           h('input', {
                             className: 'mrel-input',
