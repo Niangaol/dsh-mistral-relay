@@ -3,3 +3,14 @@
     - id: mistral-relay
       name: dsh-mistral-relay
       config: {}
+
+# billion-context 的 strict-echo：只要请求体里的模型名含 "deepseek"，它就给每条带
+# tool_calls 的 assistant 消息补一个空串 `reasoning_content`。本 provider 打的中继
+# （以及多数 Mistral 兼容端点）会以 422 extra_forbidden 拒收这个字段，导致整轮失败。
+# bili 自己的 bundle patch 明确说：bili-native 可以停用，bili-compaction-gate 必须
+# 留着（preset 等它注册的服务），卸载才要动 dsh.profile.bundles。所以这里只关
+# bili-native，并用条件表达式保证「没装 bili 的 profile 不会因此报错」。
+# 若你确实需要 bili 的 strict-echo，删掉下面这两行即可。
+- id: bili-native
+  disabled: !!js >-
+    [...ctx.loader.entries()].some((e) => e.options.id === 'bili-native')

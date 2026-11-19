@@ -101,6 +101,24 @@ dsh plugin --profile desktop add github:Niangaol/dsh-mistral-relay
         maxTokens: 128000
 ```
 
+## 与 billion-context（bili）共存
+
+bili 的 strict-echo 会在**请求体模型名包含 `deepseek`** 时，给每条带 `tool_calls` 的 assistant
+消息补一个空串 `reasoning_content`。本类中继会以 `422 extra_forbidden` 拒收该字段，整轮失败。
+
+插件的 bundle patch 用条件表达式停用 `bili-native`（并**保留** `bili-compaction-gate`——
+bili 自己的文档要求它常驻，禁用会让 preset 等待的服务缺失），没装 bili 的 profile 不受影响。
+
+因为 bundle patch 按 `dsh.profile.bundles` 的**顺序**应用，本插件必须排在该列表**最后**
+（至少要在 `billion-context` 之后），否则禁用行执行时 `bili-native` 还没被插入，等于没写：
+
+```jsonc
+// ~/.dsh/profiles/<profile>/package.json
+"dsh": { "profile": { "bundles": [ "...", "billion-context", "dsh-mistral-relay" ] } }
+```
+
+需要保留 bili 的 strict-echo 时，删掉 `cordis.patch.yml` 末尾那两行即可。
+
 ## 已知限制
 
 - 该类端点通常只接受 `reasoning_effort`，不接受 `thinking` / `reasoning` / `enable_thinking`
