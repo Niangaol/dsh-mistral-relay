@@ -119,6 +119,13 @@ bili 自己的文档要求它常驻，禁用会让 preset 等待的服务缺失�
 
 需要保留 bili 的 strict-echo 时，删掉 `cordis.patch.yml` 末尾那两行即可。
 
+## 工具结果里的图片
+
+`read_image`、截图类工具会把图片放在**工具结果**里。OpenAI 兼容的这个 wire 形态里，
+`tool` 消息只能承载文本，图片必须跟在下一条 user 消息上；否则模型只看得到文字，
+会很诚实地回答"我看不到图片"。适配器现在会把工具结果里的 image 块转成 data URI，
+附成紧随其后的一条 user 消息（`Images attached to the tool result above:`）。
+
 ## 已知限制
 
 - 该类端点通常只接受 `reasoning_effort`，不接受 `thinking` / `reasoning` / `enable_thinking`
