@@ -1,0 +1,5 @@
+# dsh-mistral-relay bundle patch: one Host row for the Web or Desktop profile.
+- insert:
+    - id: mistral-relay
+      name: dsh-mistral-relay
+      config: {}

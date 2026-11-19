@@ -1,0 +1,70 @@
+{
+  "name": "dsh-mistral-relay",
+  "version": "0.2.0",
+  "description": "Mistral-compatible relay provider for DeepSeek Harness (fork of dsh-mistral-pro): multi-account failover, live model catalog, wire ids the relay actually serves, settings page and usage pill.",
+  "icon": "icon.svg",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": ">=0.2.1-rc.5"
+  },
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "lib",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-api-remotes",
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "mistral",
+    "mistral-vibe",
+    "llm",
+    "cordis",
+    "provider"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/dsh-launch-environment": ">=0.2.1-rc.5",
+    "@deepseek-ai/dsh-llm": ">=0.2.1-rc.5",
+    "@deepseek-ai/schemastery": ">=3.19.0"
+  },
+  "author": "niangao (fork of dsh-mistral-pro by 01NGVI-QINGYI)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Niangaol/dsh-mistral-relay.git"
+  },
+  "homepage": "https://github.com/Niangaol/dsh-mistral-relay#readme",
+  "bugs": {
+    "url": "https://github.com/Niangaol/dsh-mistral-relay/issues"
+  },
+  "contributors": [
+    {
+      "name": "01NGVI-QINGYI",
+      "url": "https://github.com/01NGVI-QINGYI"
+    }
+  ]
+}
