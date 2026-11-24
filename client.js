@@ -279,10 +279,29 @@ window.__ModuleLoader__.load({
   cursor:pointer;border-radius:6px;transition:opacity .15s}
 .mrel-usage:hover,.mrel-usage[data-open="1"]{opacity:1}
 .mrel-usage-num{font-variant-numeric:tabular-nums}
-.mrel-panel-pop{position:fixed;right:18px;bottom:64px;width:300px;z-index:60;padding:16px;border-radius:16px;
-  border:1px solid var(--mrel-line);background:color-mix(in oklab,currentColor 10%,Canvas);
-  background-color:var(--mrel-canvas,Canvas);color:var(--mrel-fg);
-  box-shadow:0 18px 48px rgba(0,0,0,.35);backdrop-filter:blur(12px)}
+.mrel-pop{position:absolute;right:0;bottom:calc(100% + 8px);width:252px;z-index:60;
+  padding:10px 12px 8px;border-radius:10px;border:1px solid var(--mrel-line);
+  background:var(--mrel-surface);color:var(--mrel-fg);font-size:12px;
+  box-shadow:0 8px 24px rgba(0,0,0,.16)}
+.mrel-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
+.mrel-pop-title{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mrel-soft)}
+.mrel-pop-x{border:0;background:transparent;color:inherit;font:inherit;font-size:14px;line-height:1;
+  padding:2px 4px;cursor:pointer;opacity:.55;border-radius:4px}
+.mrel-pop-x:hover{opacity:1}
+.mrel-pop-row{padding:7px 0;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent)}
+.mrel-pop-row:first-of-type{border-top:0}
+.mrel-pop-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.mrel-pop-name{color:var(--mrel-fg)}
+.mrel-pop-pct{font-variant-numeric:tabular-nums;color:var(--mrel-soft)}
+.mrel-pop-bar{height:3px;border-radius:2px;margin:6px 0 5px;
+  background:color-mix(in oklab,currentColor 12%,transparent);overflow:hidden}
+.mrel-pop-bar i{display:block;height:100%;border-radius:2px;background:currentColor;opacity:.55}
+.mrel-pop-bar.mrel-meter-warn i{background:var(--mrel-warn);opacity:.9}
+.mrel-pop-bar.mrel-meter-bad i{background:var(--mrel-bad);opacity:.9}
+.mrel-pop-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
+  color:var(--mrel-soft);font-size:11px;font-variant-numeric:tabular-nums}
+.mrel-pop-foot{margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent);
+  color:var(--mrel-soft);font-size:10.5px}
 .mrel-empty{padding:20px;text-align:center;color:var(--mrel-soft);font-size:12px}
 @media (prefers-reduced-motion:reduce){.mrel *{transition:none!important}}
 `
@@ -1038,6 +1057,7 @@ window.__ModuleLoader__.load({
       if (meta?.usage?.display === 'off') return null
 
       const win = windowOf(usage, meta?.usage?.barBudget ?? 'vibe')
+      const windows = Array.isArray(usage?.windows) ? usage.windows : []
       const percent = typeof win?.percent === 'number' ? Math.max(0, Math.min(100, win.percent)) : undefined
       const label = usage?.plan ?? 'Mistral'
       const digits = percent !== undefined && percent < 10 ? 2 : 1
@@ -1064,12 +1084,32 @@ window.__ModuleLoader__.load({
             : h('span', { className: 'mrel-usage-num' }, status === 'loading' ? '…' : '—'),
         ),
         open
-          ? h('div', { className: 'mrel mrel-panel-pop' },
-              h('div', { className: 'mrel-row', style: { justifyContent: 'space-between' } },
-                h('span', { className: 'mrel-card-name' }, t('pillTitle')),
-                h('button', { className: 'mrel-btn', onClick: () => setOpen(false) }, '×'),
+          ? h('div', { className: 'mrel-pop' },
+              h('div', { className: 'mrel-pop-head' },
+                h('span', { className: 'mrel-pop-title' }, t('credits')),
+                h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => setOpen(false) }, '×'),
               ),
-              h(UsageTab, { ctx, t, meta, value: {}, accounts: [{ name: 'default' }] }),
+              windows.length === 0
+                ? h('div', { className: 'mrel-pop-foot' }, usage === null ? t('noUsage') : t('noAllowance'))
+                : windows.map((item) => {
+                    const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
+                    const tone = toneOf(pct) ?? ''
+                    return h('div', { className: 'mrel-pop-row', key: item.id ?? item.label },
+                      h('div', { className: 'mrel-pop-line' },
+                        h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
+                        h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
+                      ),
+                      h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
+                        h('i', { style: { width: `${pct ?? 0}%` } })),
+                      h('div', { className: 'mrel-pop-meta' },
+                        h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
+                        h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
+                      ),
+                    )
+                  }),
+              h('div', { className: 'mrel-pop-foot' },
+                usage?.fetchedAt ? `${t('fetched')}: ${minutesAgo(usage.fetchedAt, t)}` : t('usageHint'),
+              ),
             )
           : null,
       )
