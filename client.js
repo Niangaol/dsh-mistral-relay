@@ -193,86 +193,142 @@ window.__ModuleLoader__.load({
     // ── stylesheet ──────────────────────────────────────────────────────────
     const STYLE_ID = 'dsh-mistral-relay-style-v2'
     const CSS = `
-.mrel{--mrel-fg:inherit;--mrel-soft:color-mix(in oklab,currentColor 62%,transparent);
-  --mrel-line:color-mix(in oklab,currentColor 14%,transparent);
-  --mrel-surface:color-mix(in oklab,currentColor 5%,transparent);
-  --mrel-surface-2:color-mix(in oklab,currentColor 9%,transparent);
+.mrel{
+  --mrel-fg:inherit;
+  --mrel-soft:color-mix(in oklab,currentColor 58%,transparent);
+  --mrel-faint:color-mix(in oklab,currentColor 38%,transparent);
+  --mrel-line:color-mix(in oklab,currentColor 12%,transparent);
+  --mrel-line-strong:color-mix(in oklab,currentColor 20%,transparent);
+  --mrel-surface:color-mix(in oklab,currentColor 4%,transparent);
+  --mrel-surface-2:color-mix(in oklab,currentColor 8%,transparent);
   --mrel-accent:#7c9cff;--mrel-ok:#3ecf8e;--mrel-warn:#f0b429;--mrel-bad:#ef5f5f;
-  display:flex;flex-direction:column;gap:18px;color:var(--mrel-fg);font-size:13px;line-height:1.5}
+  --mrel-r:12px;
+  display:flex;flex-direction:column;gap:20px;color:var(--mrel-fg);
+  font-size:13px;line-height:1.55;letter-spacing:.005em;
+  -webkit-font-smoothing:antialiased}
 .mrel *{box-sizing:border-box}
+
+/* ── 页头 ─────────────────────────────────────────────── */
 .mrel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.mrel-title{font-size:17px;font-weight:650;letter-spacing:-.01em}
-.mrel-sub{color:var(--mrel-soft);font-size:12px;margin-top:3px}
-.mrel-chips{display:flex;gap:8px;flex-wrap:wrap}
+.mrel-title{font-size:18px;font-weight:660;letter-spacing:-.015em}
+.mrel-sub{color:var(--mrel-soft);font-size:12px;margin-top:4px;max-width:52ch}
+.mrel-chips{display:flex;gap:6px;flex-wrap:wrap}
 .mrel-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
-  background:var(--mrel-surface);border:1px solid var(--mrel-line);font-size:11.5px;color:var(--mrel-soft)}
-.mrel-chip b{color:var(--mrel-fg);font-weight:600}
-.mrel-dot{width:6px;height:6px;border-radius:50%;background:var(--mrel-soft)}
-.mrel-section{margin-top:22px}
-.mrel-section:first-of-type{margin-top:12px}
-.mrel-section-title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
-  color:var(--mrel-soft);padding-bottom:6px;border-bottom:1px solid var(--mrel-line);margin-bottom:12px}
+  background:var(--mrel-surface);border:1px solid var(--mrel-line);font-size:11.5px;
+  color:var(--mrel-soft);transition:border-color .2s,background .2s}
+.mrel-chip:hover{border-color:var(--mrel-line-strong);background:var(--mrel-surface-2)}
+.mrel-chip b{color:var(--mrel-fg);font-weight:600;font-variant-numeric:tabular-nums}
+.mrel-dot{width:6px;height:6px;border-radius:50%;background:var(--mrel-soft);flex:0 0 auto}
+
+/* ── 分节：逐段上浮 ───────────────────────────────────── */
+.mrel-section{margin-top:4px;animation:mrel-rise .42s cubic-bezier(.22,.68,.24,1) both}
+.mrel-section-title{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--mrel-faint);margin-bottom:12px;display:flex;align-items:center;gap:10px}
+.mrel-section-title::after{content:"";flex:1 1 auto;height:1px;background:var(--mrel-line)}
+
+/* ── 通用排版 ─────────────────────────────────────────── */
 .mrel-panel{display:flex;flex-direction:column;gap:14px}
 .mrel-hint{color:var(--mrel-soft);font-size:12px}
-.mrel-card{border:1px solid var(--mrel-line);border-radius:14px;background:var(--mrel-surface);padding:14px}
-.mrel-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.mrel-card-name{font-weight:600}
 .mrel-mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;color:var(--mrel-soft)}
 .mrel-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .mrel-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(260px,1fr))}
-.mrel-btn{appearance:none;border:1px solid var(--mrel-line);background:var(--mrel-surface-2);color:var(--mrel-fg);
-  font:inherit;font-size:12px;padding:6px 12px;border-radius:9px;cursor:pointer;transition:filter .15s,border-color .15s}
-.mrel-btn:hover{filter:brightness(1.08)}
-.mrel-btn:disabled{opacity:.45;cursor:default}
+
+/* ── 卡片：悬停轻微上浮 ───────────────────────────────── */
+.mrel-card{border:1px solid var(--mrel-line);border-radius:var(--mrel-r);
+  background:var(--mrel-surface);padding:14px;
+  transition:border-color .2s,background .2s,transform .2s cubic-bezier(.22,.68,.24,1)}
+.mrel-card:hover{border-color:var(--mrel-line-strong);background:var(--mrel-surface-2);transform:translateY(-1px)}
+.mrel-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.mrel-card-name{font-weight:600;letter-spacing:-.005em}
+
+/* ── 按钮 ─────────────────────────────────────────────── */
+.mrel-btn{appearance:none;border:1px solid var(--mrel-line);background:var(--mrel-surface-2);
+  color:var(--mrel-fg);font:inherit;font-size:12px;padding:6px 12px;border-radius:9px;cursor:pointer;
+  transition:border-color .18s,background .18s,transform .12s,filter .18s}
+.mrel-btn:hover{border-color:var(--mrel-line-strong);filter:brightness(1.06)}
+.mrel-btn:active{transform:scale(.97)}
+.mrel-btn:focus-visible{outline:none;box-shadow:0 0 0 3px color-mix(in oklab,var(--mrel-accent) 26%,transparent)}
+.mrel-btn:disabled{opacity:.45;cursor:default;transform:none;filter:none}
 .mrel-btn-primary{background:var(--mrel-accent);border-color:transparent;color:#0b1020;font-weight:600}
+.mrel-btn-primary:hover{filter:brightness(1.06);box-shadow:0 4px 14px color-mix(in oklab,var(--mrel-accent) 30%,transparent)}
 .mrel-btn-danger:hover{border-color:var(--mrel-bad);color:var(--mrel-bad)}
+
+/* ── 表单 ─────────────────────────────────────────────── */
 .mrel-input{appearance:none;width:100%;font:inherit;font-size:12.5px;color:var(--mrel-fg);
-  background:var(--mrel-surface-2);border:1px solid var(--mrel-line);border-radius:9px;padding:7px 10px;outline:none}
-.mrel-input:focus{border-color:var(--mrel-accent);box-shadow:0 0 0 3px color-mix(in oklab,var(--mrel-accent) 22%,transparent)}
+  background:var(--mrel-surface-2);border:1px solid var(--mrel-line);border-radius:9px;
+  padding:7px 10px;outline:none;transition:border-color .18s,box-shadow .18s,background .18s}
+.mrel-input:hover{border-color:var(--mrel-line-strong)}
+.mrel-input:focus{border-color:var(--mrel-accent);background:var(--mrel-surface);
+  box-shadow:0 0 0 3px color-mix(in oklab,var(--mrel-accent) 20%,transparent)}
 .mrel-label{display:block;font-size:11.5px;color:var(--mrel-soft);margin-bottom:5px;letter-spacing:.01em}
+
+/* ── 开关 ─────────────────────────────────────────────── */
 .mrel-switch{position:relative;display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
 .mrel-switch input{position:absolute;opacity:0;width:0;height:0}
-.mrel-track{width:34px;height:20px;border-radius:999px;background:color-mix(in oklab,currentColor 20%,transparent);
-  transition:background .18s;flex:0 0 auto}
+.mrel-track{width:34px;height:20px;border-radius:999px;position:relative;
+  background:color-mix(in oklab,currentColor 18%,transparent);
+  transition:background .22s cubic-bezier(.22,.68,.24,1)}
 .mrel-knob{position:absolute;left:3px;top:3px;width:14px;height:14px;border-radius:50%;background:#fff;
-  transition:transform .18s;box-shadow:0 1px 2px rgba(0,0,0,.35)}
+  transition:transform .22s cubic-bezier(.22,.68,.24,1);box-shadow:0 1px 2px rgba(0,0,0,.35)}
 .mrel-switch input:checked + .mrel-track{background:var(--mrel-ok)}
 .mrel-switch input:checked + .mrel-track .mrel-knob{transform:translateX(14px)}
-.mrel-switch input:focus-visible + .mrel-track{box-shadow:0 0 0 3px color-mix(in oklab,var(--mrel-ok) 25%,transparent)}
+.mrel-switch input:focus-visible + .mrel-track{box-shadow:0 0 0 3px color-mix(in oklab,var(--mrel-ok) 24%,transparent)}
+
+/* ── 标签 / 提示 ──────────────────────────────────────── */
 .mrel-tag{display:inline-flex;align-items:center;gap:5px;font-size:11px;padding:2px 8px;border-radius:7px;
   background:color-mix(in oklab,currentColor 8%,transparent);color:var(--mrel-soft)}
 .mrel-tag-ok{color:var(--mrel-ok);background:color-mix(in oklab,var(--mrel-ok) 14%,transparent)}
 .mrel-tag-bad{color:var(--mrel-bad);background:color-mix(in oklab,var(--mrel-bad) 14%,transparent)}
-.mrel-notice{font-size:12px;padding:8px 12px;border-radius:10px;border:1px solid var(--mrel-line)}
-.mrel-notice-ok{color:var(--mrel-ok);border-color:color-mix(in oklab,var(--mrel-ok) 35%,transparent);
-  background:color-mix(in oklab,var(--mrel-ok) 10%,transparent)}
-.mrel-notice-bad{color:var(--mrel-bad);border-color:color-mix(in oklab,var(--mrel-bad) 35%,transparent);
-  background:color-mix(in oklab,var(--mrel-bad) 10%,transparent)}
-.mrel-models{display:flex;flex-direction:column;border:1px solid var(--mrel-line);border-radius:14px;overflow:hidden}
-.mrel-model{display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--mrel-surface);
-  border-bottom:1px solid var(--mrel-line)}
+.mrel-notice{font-size:12px;padding:8px 12px;border-radius:10px;border:1px solid var(--mrel-line);
+  animation:mrel-rise .3s ease both}
+.mrel-notice-ok{color:var(--mrel-ok);border-color:color-mix(in oklab,var(--mrel-ok) 32%,transparent);
+  background:color-mix(in oklab,var(--mrel-ok) 9%,transparent)}
+.mrel-notice-bad{color:var(--mrel-bad);border-color:color-mix(in oklab,var(--mrel-bad) 32%,transparent);
+  background:color-mix(in oklab,var(--mrel-bad) 9%,transparent)}
+
+/* ── 模型列表 ─────────────────────────────────────────── */
+.mrel-models{display:flex;flex-direction:column;border:1px solid var(--mrel-line);
+  border-radius:var(--mrel-r);overflow:hidden;background:var(--mrel-surface)}
+.mrel-model{display:flex;align-items:center;gap:12px;padding:11px 14px;
+  border-bottom:1px solid var(--mrel-line);transition:background .18s}
 .mrel-model:last-child{border-bottom:0}
 .mrel-model:hover{background:var(--mrel-surface-2)}
 .mrel-model-main{flex:1 1 auto;min-width:0}
 .mrel-model-name{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.mrel-model-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--mrel-soft)}
-.mrel-model-desc{font-size:11.5px;color:var(--mrel-soft);margin-top:2px;overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap}
+.mrel-model-id{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--mrel-faint)}
+.mrel-model-desc{font-size:11.5px;color:var(--mrel-soft);margin-top:2px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
 .mrel-model-over{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-  padding:0 14px 14px;background:var(--mrel-surface)}
-.mrel-meter{height:8px;border-radius:999px;background:color-mix(in oklab,currentColor 14%,transparent);
+  padding:0 14px 14px;background:var(--mrel-surface);animation:mrel-rise .26s ease both}
+
+/* ── 进度条：填充带动画 ───────────────────────────────── */
+.mrel-meter{height:6px;border-radius:999px;background:color-mix(in oklab,currentColor 11%,transparent);
   overflow:hidden}
 .mrel-meter i{display:block;height:100%;border-radius:999px;background:var(--mrel-accent);
-  transition:width .3s ease}
+  transition:width .55s cubic-bezier(.22,.68,.24,1)}
 .mrel-meter-ok i{background:var(--mrel-ok)}
 .mrel-meter-warn i{background:var(--mrel-warn)}
 .mrel-meter-bad i{background:var(--mrel-bad)}
+
+/* ── 统计卡 ───────────────────────────────────────────── */
 .mrel-stats{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
-.mrel-stat{background:var(--mrel-surface);border:1px solid var(--mrel-line);border-radius:12px;padding:12px}
-.mrel-stat-k{font-size:11px;color:var(--mrel-soft);letter-spacing:.02em;text-transform:uppercase}
-.mrel-stat-v{font-size:19px;font-weight:650;margin-top:4px;letter-spacing:-.02em}
-.mrel-empty{padding:20px;text-align:center;color:var(--mrel-soft);font-size:12px}
-@media (prefers-reduced-motion:reduce){.mrel *{transition:none!important}}
+.mrel-stat{background:var(--mrel-surface);border:1px solid var(--mrel-line);
+  border-radius:var(--mrel-r);padding:12px 14px;transition:border-color .2s,background .2s}
+.mrel-stat:hover{border-color:var(--mrel-line-strong);background:var(--mrel-surface-2)}
+.mrel-stat-k{font-size:11px;color:var(--mrel-faint);letter-spacing:.04em;text-transform:uppercase}
+.mrel-stat-v{font-size:19px;font-weight:660;margin-top:4px;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums}
+
+/* ── 空态 / 加载 ──────────────────────────────────────── */
+.mrel-empty{padding:22px;text-align:center;color:var(--mrel-soft);font-size:12px;
+  animation:mrel-pulse 1.6s ease-in-out infinite}
+
+@keyframes mrel-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes mrel-pulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+@media (prefers-reduced-motion:reduce){
+  .mrel *,.mrel{animation:none!important;transition:none!important}
+}
 `
 
     function ensureStyle() {
@@ -362,8 +418,11 @@ window.__ModuleLoader__.load({
 
     // ── settings surface ────────────────────────────────────────────────────
     /** 单页设置里的一段：标题 + 内容。 */
-    function Section({ title, children }) {
-      return h('section', { className: 'mrel-section' },
+    function Section({ title, children, index = 0 }) {
+      return h('section', {
+        className: 'mrel-section',
+        style: { animationDelay: `${index * 60}ms` },
+      },
         h('div', { className: 'mrel-section-title' }, title),
         children,
       )
@@ -877,10 +936,10 @@ window.__ModuleLoader__.load({
           ),
         ),
         h(Notice, { notice, t }),
-        h(Section, { title: t('tabUsage') }, usagePanel),
-        h(Section, { title: t('tabAccounts') }, accountsPanel),
-        h(Section, { title: t('tabModels') }, modelsPanel),
-        h(Section, { title: t('tabAdvanced') }, advancedPanel),
+        h(Section, { title: t('tabUsage'), index: 0 }, usagePanel),
+        h(Section, { title: t('tabAccounts'), index: 1 }, accountsPanel),
+        h(Section, { title: t('tabModels'), index: 2 }, modelsPanel),
+        h(Section, { title: t('tabAdvanced'), index: 3 }, advancedPanel),
       )
     }
 
