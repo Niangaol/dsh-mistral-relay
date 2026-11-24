@@ -12,17 +12,6 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const h = React.createElement
     const { useState, useEffect, useCallback, useMemo, useRef } = React
-    /**
-     * 输入框所在的层叠上下文低于聊天内容，absolute 面板会被文字盖住。
-     * 有 react-dom 就挂到 body（portal），拿不到就退化为内联，至少不崩。
-     */
-    let createPortal = null
-    try {
-      const reactDom = require('react-dom')
-      if (typeof reactDom?.createPortal === 'function') createPortal = reactDom.createPortal
-    } catch {
-      createPortal = null
-    }
 
     const NS = 'mistral-relay'
     const API = '/plugins/dsh-mistral-relay'
@@ -285,36 +274,6 @@ window.__ModuleLoader__.load({
 .mrel-stat{background:var(--mrel-surface);border:1px solid var(--mrel-line);border-radius:12px;padding:12px}
 .mrel-stat-k{font-size:11px;color:var(--mrel-soft);letter-spacing:.02em;text-transform:uppercase}
 .mrel-stat-v{font-size:19px;font-weight:650;margin-top:4px;letter-spacing:-.02em}
-.mrel-usage{display:inline-flex;align-items:center;gap:6px;padding:0 6px;margin:0;border:0;
-  background:transparent;color:inherit;font:inherit;font-size:.82em;line-height:1.2;opacity:.62;
-  cursor:pointer;border-radius:6px;transition:opacity .15s}
-.mrel-usage:hover,.mrel-usage[data-open="1"]{opacity:1}
-.mrel-usage-num{font-variant-numeric:tabular-nums}
-.mrel-pop{position:fixed;right:18px;bottom:64px;width:300px;z-index:60;
-  padding:10px 12px 8px;border-radius:10px;border:1px solid var(--mrel-line);
-  background:var(--mrel-surface);color:var(--mrel-fg);font-size:12px;
-  box-shadow:0 8px 24px rgba(0,0,0,.18)}
-.mrel-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
-.mrel-pop-title{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mrel-soft)}
-.mrel-pop-x{border:0;background:transparent;color:inherit;font:inherit;font-size:14px;line-height:1;
-  padding:2px 4px;cursor:pointer;opacity:.55;border-radius:4px}
-.mrel-pop-x:hover{opacity:1}
-.mrel-pop-row{padding:7px 0;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent)}
-.mrel-pop-row:first-of-type{border-top:0}
-.mrel-pop-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.mrel-pop-name{color:var(--mrel-fg);font-size:12.5px}
-.mrel-pop-pct{font-variant-numeric:tabular-nums;color:var(--mrel-soft);font-size:12.5px}
-.mrel-pop-bar{height:3px;border-radius:2px;margin:6px 0 5px;
-  background:color-mix(in oklab,currentColor 12%,transparent);overflow:hidden}
-.mrel-pop-bar i{display:block;height:100%;border-radius:2px;background:currentColor;opacity:.55}
-.mrel-pop-bar.mrel-meter-warn i{background:var(--mrel-warn);opacity:.9}
-.mrel-pop-bar.mrel-meter-bad i{background:var(--mrel-bad);opacity:.9}
-.mrel-pop-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
-  color:var(--mrel-soft);font-size:11px;font-variant-numeric:tabular-nums}
-.mrel-pop-foot{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
-  margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent);
-  color:var(--mrel-soft);font-size:10.5px}
-.mrel-pop-plan{letter-spacing:.06em;text-transform:uppercase;opacity:.8}
 .mrel-empty{padding:20px;text-align:center;color:var(--mrel-soft);font-size:12px}
 @media (prefers-reduced-motion:reduce){.mrel *{transition:none!important}}
 `
@@ -1035,100 +994,6 @@ window.__ModuleLoader__.load({
       )
     }
 
-    function UsagePill({ ctx, t }) {
-      ensureStyle()
-      const [meta, setMeta] = useState(null)
-      const [open, setOpen] = useState(false)
-      const rootRef = useRef(null)
-
-      useEffect(() => {
-        let alive = true
-        void getJSON('/meta')
-          .then((next) => { if (alive) setMeta(next) })
-          .catch(() => {})
-        return () => { alive = false }
-      }, [])
-
-      // 展开后 8 秒收起；点外面或按 Esc 也收起。
-      useEffect(() => {
-        if (!open) return undefined
-        const timer = setTimeout(() => setOpen(false), 8000)
-        const onPointer = (event) => {
-          if (rootRef.current !== null && !rootRef.current.contains(event.target)) setOpen(false)
-        }
-        const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
-        document.addEventListener('mousedown', onPointer)
-        document.addEventListener('keydown', onKey)
-        return () => {
-          clearTimeout(timer)
-          document.removeEventListener('mousedown', onPointer)
-          document.removeEventListener('keydown', onKey)
-        }
-      }, [open])
-
-      const { status, usage } = useUsage(ctx, meta, undefined)
-      if (meta?.usage?.display === 'off') return null
-
-      const win = windowOf(usage, meta?.usage?.barBudget ?? 'vibe')
-      const windows = Array.isArray(usage?.windows) ? usage.windows : []
-      const percent = typeof win?.percent === 'number' ? Math.max(0, Math.min(100, win.percent)) : undefined
-      const digits = percent !== undefined && percent < 10 ? 2 : 1
-      const planName = typeof usage?.plan === 'string' && usage.plan.trim() !== '' ? usage.plan.trim() : null
-      const title = win
-        ? `${win.label ?? 'Mistral'} ${percent?.toFixed(digits)}% · ${money2(win.used, win.unit)} / ${money2(win.total, win.unit)}`
-        : t('pillTitle')
-
-      const rows = windows.length === 0
-        ? [h('div', { className: 'mrel-pop-foot', key: 'empty' }, usage === null ? t('noUsage') : t('noAllowance'))]
-        : windows.map((item) => {
-            const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
-            const tone = toneOf(pct) ?? ''
-            return h('div', { className: 'mrel-pop-row', key: item.id ?? item.label },
-              h('div', { className: 'mrel-pop-line' },
-                h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
-                h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
-              ),
-              h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
-                h('i', { style: { width: `${pct ?? 0}%` } })),
-              h('div', { className: 'mrel-pop-meta' },
-                h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
-                h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
-              ),
-            )
-          })
-
-      return h(
-        'div',
-        { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
-        h('button',
-          {
-            type: 'button',
-            className: 'mrel-usage',
-            'data-open': open ? '1' : '0',
-            title,
-            'aria-expanded': open ? 'true' : 'false',
-            onClick: () => setOpen((current) => !current),
-          },
-          h('span', null, 'Mistral'),
-          h('span', { className: 'mrel-usage-num' },
-            percent !== undefined ? `${percent.toFixed(digits)}%` : status === 'loading' ? '…' : '—'),
-        ),
-        open
-          ? h('div', { className: 'mrel-pop' },
-              h('div', { className: 'mrel-pop-head' },
-                h('span', { className: 'mrel-pop-title' }, t('credits')),
-                h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => setOpen(false) }, '×'),
-              ),
-              ...rows,
-              h('div', { className: 'mrel-pop-foot' },
-                h('span', { className: 'mrel-pop-plan' }, planName ?? ''),
-                h('span', null, usage?.fetchedAt ? `${t('fetched')}: ${minutesAgo(usage.fetchedAt, t)}` : t('usageHint')),
-              ),
-            )
-          : null,
-      )
-    }
-
     // ── plugin wiring ───────────────────────────────────────────────────────
     return {
       inject: ['slots', 'locale', 'remote', 'remote.settings', 'remote.credentials'],
@@ -1141,13 +1006,6 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             { name: 'settings.section', id: NS, order: 22, label: () => t('sectionTitle') },
             (props) => h(SettingsSurface, { ...props, ctx, t }),
-          ),
-        )
-
-        ctx.slots.inject('conversation.input.right', () =>
-          ctx.slots.register(
-            { name: 'conversation.input.right', id: `${NS}-usage`, order: 1001 },
-            (props) => h(UsagePill, { ...props, ctx, t }),
           ),
         )
 
