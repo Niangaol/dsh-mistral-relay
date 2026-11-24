@@ -208,13 +208,10 @@ window.__ModuleLoader__.load({
   background:var(--mrel-surface);border:1px solid var(--mrel-line);font-size:11.5px;color:var(--mrel-soft)}
 .mrel-chip b{color:var(--mrel-fg);font-weight:600}
 .mrel-dot{width:6px;height:6px;border-radius:50%;background:var(--mrel-soft)}
-.mrel-tabs{display:inline-flex;gap:2px;padding:3px;border-radius:12px;background:var(--mrel-surface);
-  border:1px solid var(--mrel-line);align-self:flex-start}
-.mrel-tab{appearance:none;border:0;background:transparent;color:var(--mrel-soft);font:inherit;
-  padding:6px 14px;border-radius:9px;cursor:pointer;transition:color .15s,background .15s}
-.mrel-tab:hover{color:var(--mrel-fg)}
-.mrel-tab[aria-selected="true"]{background:var(--mrel-surface-2);color:var(--mrel-fg);font-weight:600;
-  box-shadow:0 1px 0 color-mix(in oklab,currentColor 8%,transparent)}
+.mrel-section{margin-top:22px}
+.mrel-section:first-of-type{margin-top:12px}
+.mrel-section-title{font-size:11px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--mrel-soft);padding-bottom:6px;border-bottom:1px solid var(--mrel-line);margin-bottom:12px}
 .mrel-panel{display:flex;flex-direction:column;gap:14px}
 .mrel-hint{color:var(--mrel-soft);font-size:12px}
 .mrel-card{border:1px solid var(--mrel-line);border-radius:14px;background:var(--mrel-surface);padding:14px}
@@ -364,9 +361,16 @@ window.__ModuleLoader__.load({
     }
 
     // ── settings surface ────────────────────────────────────────────────────
+    /** 单页设置里的一段：标题 + 内容。 */
+    function Section({ title, children }) {
+      return h('section', { className: 'mrel-section' },
+        h('div', { className: 'mrel-section-title' }, title),
+        children,
+      )
+    }
+
     function SettingsSurface({ ctx, t }) {
       ensureStyle()
-      const [tab, setTab] = useState('accounts')
       const [load, setLoad] = useState({ status: 'loading', meta: null, value: {}, revision: undefined, creds: {}, models: [], error: null })
       const [draft, setDraft] = useState(null)
       const [notice, setNotice] = useState(null)
@@ -522,17 +526,9 @@ window.__ModuleLoader__.load({
         return h('div', { className: 'mrel' }, h(Notice, { notice: { kind: 'error', text: fill(t('loadFailed'), { message: load.error }) }, t }))
       }
 
-      const tabs = [
-        ['accounts', t('tabAccounts')],
-        ['models', t('tabModels')],
-        ['usage', t('tabUsage')],
-        ['advanced', t('tabAdvanced')],
-      ]
-
       const accountsPanel = h(
         'div',
         { className: 'mrel-panel' },
-        h(Notice, { notice, t }),
         h('div', { className: 'mrel-hint' }, t('accountsHint')),
         h(
           'div',
@@ -880,18 +876,11 @@ window.__ModuleLoader__.load({
             h(Chip, { tone: models.length > 0 ? 'ok' : undefined }, h('span', { className: 'mrel-dot', style: { background: models.length > 0 ? 'var(--mrel-ok)' : 'var(--mrel-warn)' } }), load.meta?.provider ?? NS),
           ),
         ),
-        h('div', { className: 'mrel-tabs', role: 'tablist' },
-          tabs.map(([id, label]) =>
-            h('button', {
-              key: id,
-              role: 'tab',
-              className: 'mrel-tab',
-              'aria-selected': tab === id ? 'true' : 'false',
-              onClick: () => setTab(id),
-            }, label),
-          ),
-        ),
-        tab === 'accounts' ? accountsPanel : tab === 'models' ? modelsPanel : tab === 'usage' ? usagePanel : advancedPanel,
+        h(Notice, { notice, t }),
+        h(Section, { title: t('tabUsage') }, usagePanel),
+        h(Section, { title: t('tabAccounts') }, accountsPanel),
+        h(Section, { title: t('tabModels') }, modelsPanel),
+        h(Section, { title: t('tabAdvanced') }, advancedPanel),
       )
     }
 
