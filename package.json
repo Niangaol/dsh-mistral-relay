@@ -1,6 +1,6 @@
 {
   "name": "dsh-mistral-relay",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Mistral-compatible relay provider for DeepSeek Harness (fork of dsh-mistral-pro): multi-account failover, live model catalog, wire ids the relay actually serves, settings page and usage pill.",
   "icon": "icon.svg",
   "type": "module",

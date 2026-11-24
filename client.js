@@ -1073,6 +1073,27 @@ window.__ModuleLoader__.load({
         }
       }, [open])
 
+      const panelRef = useRef(null)
+      /**
+       * 插件只能 require('react')，没有 react-dom 的 createPortal。
+       * 折中：面板挂载后把 DOM 节点搬到 body 末尾，突破输入框的层叠上下文；
+       * 关闭前再搬回原位，React 卸载时才找得到父节点。
+       */
+      useEffect(() => {
+        if (!open) return undefined
+        const node = panelRef.current
+        if (node === null || typeof document === 'undefined') return undefined
+        const home = node.parentNode
+        document.body.appendChild(node)
+        return () => {
+          try {
+            if (home !== null) home.appendChild(node)
+          } catch {
+            /* 节点已被移除，忽略 */
+          }
+        }
+      }, [open])
+
       const { status, usage } = useUsage(ctx, meta, undefined)
       if (meta?.usage?.display === 'off') return null
 
@@ -1123,6 +1144,7 @@ window.__ModuleLoader__.load({
           })
 
       const panel = h('div', {
+        ref: panelRef,
         className: 'mrel-pop',
         style: {
           position: 'fixed',
@@ -1146,6 +1168,7 @@ window.__ModuleLoader__.load({
         ),
       )
 
+      // 有 react-dom 用 portal；没有就靠上面的 DOM 搬迁。
       const mounted = open
         ? (createPortal === null ? panel : createPortal(panel, document.body))
         : null
