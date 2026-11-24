@@ -290,10 +290,10 @@ window.__ModuleLoader__.load({
   cursor:pointer;border-radius:6px;transition:opacity .15s}
 .mrel-usage:hover,.mrel-usage[data-open="1"]{opacity:1}
 .mrel-usage-num{font-variant-numeric:tabular-nums}
-.mrel-pop{position:absolute;right:0;bottom:calc(100% + 8px);width:252px;z-index:60;
+.mrel-pop{position:fixed;right:18px;bottom:64px;width:300px;z-index:60;
   padding:10px 12px 8px;border-radius:10px;border:1px solid var(--mrel-line);
   background:var(--mrel-surface);color:var(--mrel-fg);font-size:12px;
-  box-shadow:0 8px 24px rgba(0,0,0,.16)}
+  box-shadow:0 8px 24px rgba(0,0,0,.18)}
 .mrel-pop-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}
 .mrel-pop-title{font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--mrel-soft)}
 .mrel-pop-x{border:0;background:transparent;color:inherit;font:inherit;font-size:14px;line-height:1;
@@ -302,8 +302,8 @@ window.__ModuleLoader__.load({
 .mrel-pop-row{padding:7px 0;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent)}
 .mrel-pop-row:first-of-type{border-top:0}
 .mrel-pop-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.mrel-pop-name{color:var(--mrel-fg)}
-.mrel-pop-pct{font-variant-numeric:tabular-nums;color:var(--mrel-soft)}
+.mrel-pop-name{color:var(--mrel-fg);font-size:12.5px}
+.mrel-pop-pct{font-variant-numeric:tabular-nums;color:var(--mrel-soft);font-size:12.5px}
 .mrel-pop-bar{height:3px;border-radius:2px;margin:6px 0 5px;
   background:color-mix(in oklab,currentColor 12%,transparent);overflow:hidden}
 .mrel-pop-bar i{display:block;height:100%;border-radius:2px;background:currentColor;opacity:.55}
@@ -311,14 +311,6 @@ window.__ModuleLoader__.load({
 .mrel-pop-bar.mrel-meter-bad i{background:var(--mrel-bad);opacity:.9}
 .mrel-pop-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
   color:var(--mrel-soft);font-size:11px;font-variant-numeric:tabular-nums}
-.mrel-dock{flex:1 1 100%;width:100%;min-width:0;padding:2px 12px 8px;color:inherit;font-size:12px}
-.mrel-dock-head{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-.mrel-dock-meta{margin-left:auto;color:var(--mrel-soft);font-size:10.5px;letter-spacing:.04em;
-  text-transform:uppercase;font-variant-numeric:tabular-nums}
-.mrel-dock-grid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));width:100%}
-.mrel-dock-item{min-width:0;padding-top:2px}
-.mrel-pop-name{font-weight:500;font-size:12.5px}
-.mrel-pop-pct{font-size:12.5px}
 .mrel-pop-foot{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
   margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent);
   color:var(--mrel-soft);font-size:10.5px}
@@ -1043,31 +1035,11 @@ window.__ModuleLoader__.load({
       )
     }
 
-    /** 两个槽位（按钮 / dock 面板）共享展开状态，用一个极小的订阅表。 */
-    const usagePanel = {
-      open: false,
-      listeners: new Set(),
-      set(next) {
-        if (usagePanel.open === next) return
-        usagePanel.open = next
-        for (const listener of [...usagePanel.listeners]) listener()
-      },
-      subscribe(listener) {
-        usagePanel.listeners.add(listener)
-        return () => { usagePanel.listeners.delete(listener) }
-      },
-    }
-
-    function useUsagePanelOpen() {
-      const [open, setOpen] = useState(usagePanel.open)
-      useEffect(() => usagePanel.subscribe(() => setOpen(usagePanel.open)), [])
-      return open
-    }
-
     function UsagePill({ ctx, t }) {
       ensureStyle()
       const [meta, setMeta] = useState(null)
-      const open = useUsagePanelOpen()
+      const [open, setOpen] = useState(false)
+      const rootRef = useRef(null)
 
       useEffect(() => {
         let alive = true
@@ -1076,97 +1048,84 @@ window.__ModuleLoader__.load({
           .catch(() => {})
         return () => { alive = false }
       }, [])
+
+      // 展开后 8 秒收起；点外面或按 Esc 也收起。
+      useEffect(() => {
+        if (!open) return undefined
+        const timer = setTimeout(() => setOpen(false), 8000)
+        const onPointer = (event) => {
+          if (rootRef.current !== null && !rootRef.current.contains(event.target)) setOpen(false)
+        }
+        const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
+        document.addEventListener('mousedown', onPointer)
+        document.addEventListener('keydown', onKey)
+        return () => {
+          clearTimeout(timer)
+          document.removeEventListener('mousedown', onPointer)
+          document.removeEventListener('keydown', onKey)
+        }
+      }, [open])
 
       const { status, usage } = useUsage(ctx, meta, undefined)
       if (meta?.usage?.display === 'off') return null
 
       const win = windowOf(usage, meta?.usage?.barBudget ?? 'vibe')
+      const windows = Array.isArray(usage?.windows) ? usage.windows : []
       const percent = typeof win?.percent === 'number' ? Math.max(0, Math.min(100, win.percent)) : undefined
       const digits = percent !== undefined && percent < 10 ? 2 : 1
+      const planName = typeof usage?.plan === 'string' && usage.plan.trim() !== '' ? usage.plan.trim() : null
       const title = win
         ? `${win.label ?? 'Mistral'} ${percent?.toFixed(digits)}% · ${money2(win.used, win.unit)} / ${money2(win.total, win.unit)}`
         : t('pillTitle')
 
+      const rows = windows.length === 0
+        ? [h('div', { className: 'mrel-pop-foot', key: 'empty' }, usage === null ? t('noUsage') : t('noAllowance'))]
+        : windows.map((item) => {
+            const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
+            const tone = toneOf(pct) ?? ''
+            return h('div', { className: 'mrel-pop-row', key: item.id ?? item.label },
+              h('div', { className: 'mrel-pop-line' },
+                h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
+                h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
+              ),
+              h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
+                h('i', { style: { width: `${pct ?? 0}%` } })),
+              h('div', { className: 'mrel-pop-meta' },
+                h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
+                h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
+              ),
+            )
+          })
+
       return h(
-        'button',
-        {
-          type: 'button',
-          className: 'mrel-usage',
-          'data-open': open ? '1' : '0',
-          title,
-          'aria-expanded': open ? 'true' : 'false',
-          onClick: () => usagePanel.set(!usagePanel.open),
-        },
-        h('span', null, 'Mistral'),
-        h('span', { className: 'mrel-usage-num' },
-          percent !== undefined ? `${percent.toFixed(digits)}%` : status === 'loading' ? '…' : '—'),
-      )
-    }
-
-    /**
-     * 面板本体挂在 conversation.composer.dock（输入框下方那一行），
-     * 不再做浮层——浮层会被聊天内容盖住、点击也被吃掉。
-     */
-    function UsageDock({ ctx, t }) {
-      ensureStyle()
-      const open = useUsagePanelOpen()
-      const [meta, setMeta] = useState(null)
-
-      useEffect(() => {
-        let alive = true
-        void getJSON('/meta')
-          .then((next) => { if (alive) setMeta(next) })
-          .catch(() => {})
-        return () => { alive = false }
-      }, [])
-
-      useEffect(() => {
-        if (!open) return undefined
-        const timer = setTimeout(() => usagePanel.set(false), 8000)
-        const onKey = (event) => { if (event.key === 'Escape') usagePanel.set(false) }
-        document.addEventListener('keydown', onKey)
-        return () => {
-          clearTimeout(timer)
-          document.removeEventListener('keydown', onKey)
-        }
-      }, [open])
-
-      const { usage } = useUsage(ctx, meta, undefined)
-      if (!open) return null
-      if (meta?.usage?.display === 'off') return null
-
-      const windows = Array.isArray(usage?.windows) ? usage.windows : []
-      const planName = typeof usage?.plan === 'string' && usage.plan.trim() !== '' ? usage.plan.trim() : null
-
-      return h('div', { className: 'mrel-dock' },
-        h('div', { className: 'mrel-dock-head' },
-          h('span', { className: 'mrel-pop-title' }, t('credits')),
-          h('span', { className: 'mrel-dock-meta' },
-            planName !== null ? planName : '',
-            usage?.fetchedAt ? ` · ${minutesAgo(usage.fetchedAt, t)}` : '',
-          ),
-          h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => usagePanel.set(false) }, '×'),
+        'div',
+        { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
+        h('button',
+          {
+            type: 'button',
+            className: 'mrel-usage',
+            'data-open': open ? '1' : '0',
+            title,
+            'aria-expanded': open ? 'true' : 'false',
+            onClick: () => setOpen((current) => !current),
+          },
+          h('span', null, 'Mistral'),
+          h('span', { className: 'mrel-usage-num' },
+            percent !== undefined ? `${percent.toFixed(digits)}%` : status === 'loading' ? '…' : '—'),
         ),
-        windows.length === 0
-          ? h('div', { className: 'mrel-pop-foot' }, usage === null ? t('noUsage') : t('noAllowance'))
-          : h('div', { className: 'mrel-dock-grid' },
-              windows.map((item) => {
-                const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
-                const tone = toneOf(pct) ?? ''
-                return h('div', { className: 'mrel-dock-item', key: item.id ?? item.label },
-                  h('div', { className: 'mrel-pop-line' },
-                    h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
-                    h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
-                  ),
-                  h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
-                    h('i', { style: { width: `${pct ?? 0}%` } })),
-                  h('div', { className: 'mrel-pop-meta' },
-                    h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
-                    h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
-                  ),
-                )
-              }),
-            ),
+        open
+          ? h('div', { className: 'mrel-pop' },
+              h('div', { className: 'mrel-pop-head' },
+                h('span', { className: 'mrel-pop-title' }, t('credits')),
+                h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => setOpen(false) }, '×'),
+              ),
+              ...rows,
+              h('div', { className: 'mrel-pop-foot' },
+                h('span', { className: 'mrel-pop-plan' }, planName ?? ''),
+                h('span', null, usage?.fetchedAt ? `${t('fetched')}: ${minutesAgo(usage.fetchedAt, t)}` : t('usageHint')),
+              ),
+            )
+          : null,
       )
     }
 
@@ -1192,12 +1151,6 @@ window.__ModuleLoader__.load({
           ),
         )
 
-        ctx.slots.inject('conversation.composer.dock', () =>
-          ctx.slots.register(
-            { name: 'conversation.composer.dock', id: `${NS}-usage-dock`, order: 1001 },
-            (props) => h(UsageDock, { ...props, ctx, t }),
-          ),
-        )
       },
     }
   },
