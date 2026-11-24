@@ -1084,8 +1084,14 @@ window.__ModuleLoader__.load({
         const node = panelRef.current
         if (node === null || typeof document === 'undefined') return undefined
         const home = node.parentNode
-        document.body.appendChild(node)
+        const hoist = () => {
+          if (node.parentNode !== document.body) document.body.appendChild(node)
+        }
+        hoist()
+        // React 可能在后续渲染里把节点插回原位；每次渲染后再搬一次。
+        const interval = setInterval(hoist, 250)
         return () => {
+          clearInterval(interval)
           try {
             if (home !== null) home.appendChild(node)
           } catch {
@@ -1152,7 +1158,7 @@ window.__ModuleLoader__.load({
           bottom: anchor === null ? 64 : anchor.bottom,
           right: 'auto',
           top: 'auto',
-          zIndex: 2147483000,
+          zIndex: 2147483647,
         },
       },
         h('div', { className: 'mrel-pop-head' },
