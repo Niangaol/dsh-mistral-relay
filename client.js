@@ -311,6 +311,12 @@ window.__ModuleLoader__.load({
 .mrel-pop-bar.mrel-meter-bad i{background:var(--mrel-bad);opacity:.9}
 .mrel-pop-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
   color:var(--mrel-soft);font-size:11px;font-variant-numeric:tabular-nums}
+.mrel-dock{padding:6px 12px 10px;color:inherit}
+.mrel-dock-head{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.mrel-dock-meta{margin-left:auto;color:var(--mrel-soft);font-size:10.5px;letter-spacing:.04em;
+  text-transform:uppercase;font-variant-numeric:tabular-nums}
+.mrel-dock-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+.mrel-dock-item{padding-top:4px}
 .mrel-pop-foot{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
   margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent);
   color:var(--mrel-soft);font-size:10.5px}
@@ -1035,13 +1041,31 @@ window.__ModuleLoader__.load({
       )
     }
 
+    /** 两个槽位（按钮 / dock 面板）共享展开状态，用一个极小的订阅表。 */
+    const usagePanel = {
+      open: false,
+      listeners: new Set(),
+      set(next) {
+        if (usagePanel.open === next) return
+        usagePanel.open = next
+        for (const listener of [...usagePanel.listeners]) listener()
+      },
+      subscribe(listener) {
+        usagePanel.listeners.add(listener)
+        return () => { usagePanel.listeners.delete(listener) }
+      },
+    }
+
+    function useUsagePanelOpen() {
+      const [open, setOpen] = useState(usagePanel.open)
+      useEffect(() => usagePanel.subscribe(() => setOpen(usagePanel.open)), [])
+      return open
+    }
+
     function UsagePill({ ctx, t }) {
       ensureStyle()
       const [meta, setMeta] = useState(null)
-      const [open, setOpen] = useState(false)
-      const [anchor, setAnchor] = useState(null)
-      const rootRef = useRef(null)
-      const buttonRef = useRef(null)
+      const open = useUsagePanelOpen()
 
       useEffect(() => {
         let alive = true
@@ -1051,158 +1075,96 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [])
 
-      // 展开后 6 秒收起；点外面 / Esc / 滚动 / 改窗口大小也收起。
-      useEffect(() => {
-        if (!open) return undefined
-        const timer = setTimeout(() => setOpen(false), 6000)
-        const onPointer = (event) => {
-          if (rootRef.current !== null && !rootRef.current.contains(event.target)) setOpen(false)
-        }
-        const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
-        const onScroll = () => setOpen(false)
-        document.addEventListener('mousedown', onPointer)
-        document.addEventListener('keydown', onKey)
-        window.addEventListener('resize', onScroll)
-        window.addEventListener('scroll', onScroll, true)
-        return () => {
-          clearTimeout(timer)
-          document.removeEventListener('mousedown', onPointer)
-          document.removeEventListener('keydown', onKey)
-          window.removeEventListener('resize', onScroll)
-          window.removeEventListener('scroll', onScroll, true)
-        }
-      }, [open])
-
-      const panelRef = useRef(null)
-      /**
-       * 插件只能 require('react')，没有 react-dom 的 createPortal。
-       * 折中：面板挂载后把 DOM 节点搬到 body 末尾，突破输入框的层叠上下文；
-       * 关闭前再搬回原位，React 卸载时才找得到父节点。
-       */
-      useEffect(() => {
-        if (!open) return undefined
-        const node = panelRef.current
-        if (node === null || typeof document === 'undefined') return undefined
-        const home = node.parentNode
-        const hoist = () => {
-          if (node.parentNode !== document.body) document.body.appendChild(node)
-        }
-        hoist()
-        // React 可能在后续渲染里把节点插回原位；每次渲染后再搬一次。
-        const interval = setInterval(hoist, 250)
-        return () => {
-          clearInterval(interval)
-          try {
-            if (home !== null) home.appendChild(node)
-          } catch {
-            /* 节点已被移除，忽略 */
-          }
-        }
-      }, [open])
-
       const { status, usage } = useUsage(ctx, meta, undefined)
       if (meta?.usage?.display === 'off') return null
 
       const win = windowOf(usage, meta?.usage?.barBudget ?? 'vibe')
-      const windows = Array.isArray(usage?.windows) ? usage.windows : []
       const percent = typeof win?.percent === 'number' ? Math.max(0, Math.min(100, win.percent)) : undefined
-      // 账单接口的 plan 是套餐名（例如 INDIVIDUAL），不该当标签显示。
-      const label = 'Mistral'
-      const planName = typeof usage?.plan === 'string' && usage.plan.trim() !== '' ? usage.plan.trim() : null
       const digits = percent !== undefined && percent < 10 ? 2 : 1
       const title = win
-        ? `${win.label ?? label} ${percent?.toFixed(digits)}% · ${money2(win.used, win.unit)} / ${money2(win.total, win.unit)}`
+        ? `${win.label ?? 'Mistral'} ${percent?.toFixed(digits)}% · ${money2(win.used, win.unit)} / ${money2(win.total, win.unit)}`
         : t('pillTitle')
 
-      const toggle = () => {
-        if (open) {
-          setOpen(false)
-          return
-        }
-        const rect = buttonRef.current?.getBoundingClientRect?.()
-        if (rect !== undefined && rect !== null && typeof window !== 'undefined') {
-          const width = 252
-          setAnchor({
-            left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
-            bottom: Math.max(8, window.innerHeight - rect.top + 8),
-          })
-        }
-        setOpen(true)
-      }
-
-      const rows = windows.length === 0
-        ? [h('div', { className: 'mrel-pop-foot', key: 'empty' }, usage === null ? t('noUsage') : t('noAllowance'))]
-        : windows.map((item) => {
-            const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
-            const tone = toneOf(pct) ?? ''
-            return h('div', { className: 'mrel-pop-row', key: item.id ?? item.label },
-              h('div', { className: 'mrel-pop-line' },
-                h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
-                h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
-              ),
-              h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
-                h('i', { style: { width: `${pct ?? 0}%` } })),
-              h('div', { className: 'mrel-pop-meta' },
-                h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
-                h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
-              ),
-            )
-          })
-
-      const panel = h('div', {
-        ref: panelRef,
-        className: 'mrel-pop',
-        style: {
-          position: 'fixed',
-          left: anchor === null ? 8 : anchor.left,
-          bottom: anchor === null ? 64 : anchor.bottom,
-          right: 'auto',
-          top: 'auto',
-          zIndex: 2147483647,
-        },
-      },
-        h('div', { className: 'mrel-pop-head' },
-          h('span', { className: 'mrel-pop-title' }, t('credits')),
-          h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => setOpen(false) }, '×'),
-        ),
-        ...rows,
-        h('div', { className: 'mrel-pop-foot' },
-          planName !== null ? h('span', { className: 'mrel-pop-plan' }, planName) : null,
-          h('span', null,
-            usage?.fetchedAt ? `${t('fetched')}: ${minutesAgo(usage.fetchedAt, t)}` : t('usageHint'),
-          ),
-        ),
-      )
-
-      // 有 react-dom 用 portal；没有就靠上面的 DOM 搬迁。
-      const mounted = open
-        ? (createPortal === null ? panel : createPortal(panel, document.body))
-        : null
-
       return h(
-        React.Fragment,
-        null,
-        h(
-          'div',
-          { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
-          h(
-            'button',
-            {
-              type: 'button',
-              className: 'mrel-usage',
-              'data-open': open ? '1' : '0',
-              title,
-              'aria-expanded': open ? 'true' : 'false',
-              ref: buttonRef,
-              onClick: toggle,
-            },
-            h('span', null, label),
-            percent !== undefined
-              ? h('span', { className: 'mrel-usage-num' }, `${percent.toFixed(digits)}%`)
-              : h('span', { className: 'mrel-usage-num' }, status === 'loading' ? '…' : '—'),
+        'button',
+        {
+          type: 'button',
+          className: 'mrel-usage',
+          'data-open': open ? '1' : '0',
+          title,
+          'aria-expanded': open ? 'true' : 'false',
+          onClick: () => usagePanel.set(!usagePanel.open),
+        },
+        h('span', null, 'Mistral'),
+        h('span', { className: 'mrel-usage-num' },
+          percent !== undefined ? `${percent.toFixed(digits)}%` : status === 'loading' ? '…' : '—'),
+      )
+    }
+
+    /**
+     * 面板本体挂在 conversation.composer.dock（输入框下方那一行），
+     * 不再做浮层——浮层会被聊天内容盖住、点击也被吃掉。
+     */
+    function UsageDock({ ctx, t }) {
+      ensureStyle()
+      const open = useUsagePanelOpen()
+      const [meta, setMeta] = useState(null)
+
+      useEffect(() => {
+        let alive = true
+        void getJSON('/meta')
+          .then((next) => { if (alive) setMeta(next) })
+          .catch(() => {})
+        return () => { alive = false }
+      }, [])
+
+      useEffect(() => {
+        if (!open) return undefined
+        const timer = setTimeout(() => usagePanel.set(false), 8000)
+        const onKey = (event) => { if (event.key === 'Escape') usagePanel.set(false) }
+        document.addEventListener('keydown', onKey)
+        return () => {
+          clearTimeout(timer)
+          document.removeEventListener('keydown', onKey)
+        }
+      }, [open])
+
+      const { usage } = useUsage(ctx, meta, undefined)
+      if (!open) return null
+      if (meta?.usage?.display === 'off') return null
+
+      const windows = Array.isArray(usage?.windows) ? usage.windows : []
+      const planName = typeof usage?.plan === 'string' && usage.plan.trim() !== '' ? usage.plan.trim() : null
+
+      return h('div', { className: 'mrel-dock' },
+        h('div', { className: 'mrel-dock-head' },
+          h('span', { className: 'mrel-pop-title' }, t('credits')),
+          h('span', { className: 'mrel-dock-meta' },
+            planName !== null ? planName : '',
+            usage?.fetchedAt ? ` · ${minutesAgo(usage.fetchedAt, t)}` : '',
           ),
+          h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => usagePanel.set(false) }, '×'),
         ),
-        mounted,
+        windows.length === 0
+          ? h('div', { className: 'mrel-pop-foot' }, usage === null ? t('noUsage') : t('noAllowance'))
+          : h('div', { className: 'mrel-dock-grid' },
+              windows.map((item) => {
+                const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
+                const tone = toneOf(pct) ?? ''
+                return h('div', { className: 'mrel-dock-item', key: item.id ?? item.label },
+                  h('div', { className: 'mrel-pop-line' },
+                    h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
+                    h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
+                  ),
+                  h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
+                    h('i', { style: { width: `${pct ?? 0}%` } })),
+                  h('div', { className: 'mrel-pop-meta' },
+                    h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
+                    h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
+                  ),
+                )
+              }),
+            ),
       )
     }
 
@@ -1225,6 +1187,13 @@ window.__ModuleLoader__.load({
           ctx.slots.register(
             { name: 'conversation.input.right', id: `${NS}-usage`, order: 1001 },
             (props) => h(UsagePill, { ...props, ctx, t }),
+          ),
+        )
+
+        ctx.slots.inject('conversation.composer.dock', () =>
+          ctx.slots.register(
+            { name: 'conversation.composer.dock', id: `${NS}-usage-dock`, order: 1001 },
+            (props) => h(UsageDock, { ...props, ctx, t }),
           ),
         )
       },
