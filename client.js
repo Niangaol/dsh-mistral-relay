@@ -12,6 +12,17 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const h = React.createElement
     const { useState, useEffect, useCallback, useMemo, useRef } = React
+    /**
+     * 输入框所在的层叠上下文低于聊天内容，absolute 面板会被文字盖住。
+     * 有 react-dom 就挂到 body（portal），拿不到就退化为内联，至少不崩。
+     */
+    let createPortal = null
+    try {
+      const reactDom = require('react-dom')
+      if (typeof reactDom?.createPortal === 'function') createPortal = reactDom.createPortal
+    } catch {
+      createPortal = null
+    }
 
     const NS = 'mistral-relay'
     const API = '/plugins/dsh-mistral-relay'
@@ -300,8 +311,10 @@ window.__ModuleLoader__.load({
 .mrel-pop-bar.mrel-meter-bad i{background:var(--mrel-bad);opacity:.9}
 .mrel-pop-meta{display:flex;align-items:baseline;justify-content:space-between;gap:10px;
   color:var(--mrel-soft);font-size:11px;font-variant-numeric:tabular-nums}
-.mrel-pop-foot{margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent);
+.mrel-pop-foot{display:flex;align-items:baseline;justify-content:space-between;gap:8px;
+  margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in oklab,currentColor 8%,transparent);
   color:var(--mrel-soft);font-size:10.5px}
+.mrel-pop-plan{letter-spacing:.06em;text-transform:uppercase;opacity:.8}
 .mrel-empty{padding:20px;text-align:center;color:var(--mrel-soft);font-size:12px}
 @media (prefers-reduced-motion:reduce){.mrel *{transition:none!important}}
 `
@@ -1026,7 +1039,9 @@ window.__ModuleLoader__.load({
       ensureStyle()
       const [meta, setMeta] = useState(null)
       const [open, setOpen] = useState(false)
+      const [anchor, setAnchor] = useState(null)
       const rootRef = useRef(null)
+      const buttonRef = useRef(null)
 
       useEffect(() => {
         let alive = true
@@ -1036,7 +1051,7 @@ window.__ModuleLoader__.load({
         return () => { alive = false }
       }, [])
 
-      // 展开后 6 秒自动收起；点外面或按 Esc 也收起。
+      // 展开后 6 秒收起；点外面 / Esc / 滚动 / 改窗口大小也收起。
       useEffect(() => {
         if (!open) return undefined
         const timer = setTimeout(() => setOpen(false), 6000)
@@ -1044,12 +1059,17 @@ window.__ModuleLoader__.load({
           if (rootRef.current !== null && !rootRef.current.contains(event.target)) setOpen(false)
         }
         const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
+        const onScroll = () => setOpen(false)
         document.addEventListener('mousedown', onPointer)
         document.addEventListener('keydown', onKey)
+        window.addEventListener('resize', onScroll)
+        window.addEventListener('scroll', onScroll, true)
         return () => {
           clearTimeout(timer)
           document.removeEventListener('mousedown', onPointer)
           document.removeEventListener('keydown', onKey)
+          window.removeEventListener('resize', onScroll)
+          window.removeEventListener('scroll', onScroll, true)
         }
       }, [open])
 
@@ -1059,59 +1079,101 @@ window.__ModuleLoader__.load({
       const win = windowOf(usage, meta?.usage?.barBudget ?? 'vibe')
       const windows = Array.isArray(usage?.windows) ? usage.windows : []
       const percent = typeof win?.percent === 'number' ? Math.max(0, Math.min(100, win.percent)) : undefined
-      const label = usage?.plan ?? 'Mistral'
+      // 账单接口的 plan 是套餐名（例如 INDIVIDUAL），不该当标签显示。
+      const label = 'Mistral'
+      const planName = typeof usage?.plan === 'string' && usage.plan.trim() !== '' ? usage.plan.trim() : null
       const digits = percent !== undefined && percent < 10 ? 2 : 1
       const title = win
         ? `${win.label ?? label} ${percent?.toFixed(digits)}% · ${money2(win.used, win.unit)} / ${money2(win.total, win.unit)}`
         : t('pillTitle')
 
-      return h(
-        'div',
-        { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
-        h(
-          'button',
-          {
-            type: 'button',
-            className: 'mrel-usage',
-            'data-open': open ? '1' : '0',
-            title,
-            'aria-expanded': open ? 'true' : 'false',
-            onClick: () => setOpen((current) => !current),
-          },
-          h('span', null, label),
-          percent !== undefined
-            ? h('span', { className: 'mrel-usage-num' }, `${percent.toFixed(digits)}%`)
-            : h('span', { className: 'mrel-usage-num' }, status === 'loading' ? '…' : '—'),
-        ),
-        open
-          ? h('div', { className: 'mrel-pop' },
-              h('div', { className: 'mrel-pop-head' },
-                h('span', { className: 'mrel-pop-title' }, t('credits')),
-                h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => setOpen(false) }, '×'),
+      const toggle = () => {
+        if (open) {
+          setOpen(false)
+          return
+        }
+        const rect = buttonRef.current?.getBoundingClientRect?.()
+        if (rect !== undefined && rect !== null && typeof window !== 'undefined') {
+          const width = 252
+          setAnchor({
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+            bottom: Math.max(8, window.innerHeight - rect.top + 8),
+          })
+        }
+        setOpen(true)
+      }
+
+      const rows = windows.length === 0
+        ? [h('div', { className: 'mrel-pop-foot', key: 'empty' }, usage === null ? t('noUsage') : t('noAllowance'))]
+        : windows.map((item) => {
+            const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
+            const tone = toneOf(pct) ?? ''
+            return h('div', { className: 'mrel-pop-row', key: item.id ?? item.label },
+              h('div', { className: 'mrel-pop-line' },
+                h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
+                h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
               ),
-              windows.length === 0
-                ? h('div', { className: 'mrel-pop-foot' }, usage === null ? t('noUsage') : t('noAllowance'))
-                : windows.map((item) => {
-                    const pct = typeof item.percent === 'number' ? Math.max(0, Math.min(100, item.percent)) : undefined
-                    const tone = toneOf(pct) ?? ''
-                    return h('div', { className: 'mrel-pop-row', key: item.id ?? item.label },
-                      h('div', { className: 'mrel-pop-line' },
-                        h('span', { className: 'mrel-pop-name' }, item.label ?? item.id ?? t('usage')),
-                        h('span', { className: 'mrel-pop-pct' }, pct === undefined ? '—' : `${pct.toFixed(pct < 10 ? 2 : 1)}%`),
-                      ),
-                      h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
-                        h('i', { style: { width: `${pct ?? 0}%` } })),
-                      h('div', { className: 'mrel-pop-meta' },
-                        h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
-                        h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
-                      ),
-                    )
-                  }),
-              h('div', { className: 'mrel-pop-foot' },
-                usage?.fetchedAt ? `${t('fetched')}: ${minutesAgo(usage.fetchedAt, t)}` : t('usageHint'),
+              h('div', { className: `mrel-pop-bar${tone === 'ok' ? '' : ` mrel-meter-${tone}`}` },
+                h('i', { style: { width: `${pct ?? 0}%` } })),
+              h('div', { className: 'mrel-pop-meta' },
+                h('span', null, `${money2(item.used, item.unit)} / ${money2(item.total, item.unit)}`),
+                h('span', null, item.resetsAt ? `${t('renews')} ${whenText(item.resetsAt, t)}` : ''),
               ),
             )
-          : null,
+          })
+
+      const panel = h('div', {
+        className: 'mrel-pop',
+        style: {
+          position: 'fixed',
+          left: anchor === null ? 8 : anchor.left,
+          bottom: anchor === null ? 64 : anchor.bottom,
+          right: 'auto',
+          top: 'auto',
+          zIndex: 2147483000,
+        },
+      },
+        h('div', { className: 'mrel-pop-head' },
+          h('span', { className: 'mrel-pop-title' }, t('credits')),
+          h('button', { className: 'mrel-pop-x', type: 'button', onClick: () => setOpen(false) }, '×'),
+        ),
+        ...rows,
+        h('div', { className: 'mrel-pop-foot' },
+          planName !== null ? h('span', { className: 'mrel-pop-plan' }, planName) : null,
+          h('span', null,
+            usage?.fetchedAt ? `${t('fetched')}: ${minutesAgo(usage.fetchedAt, t)}` : t('usageHint'),
+          ),
+        ),
+      )
+
+      const mounted = open
+        ? (createPortal === null ? panel : createPortal(panel, document.body))
+        : null
+
+      return h(
+        React.Fragment,
+        null,
+        h(
+          'div',
+          { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'mrel-usage',
+              'data-open': open ? '1' : '0',
+              title,
+              'aria-expanded': open ? 'true' : 'false',
+              ref: buttonRef,
+              onClick: toggle,
+            },
+            h('span', null, label),
+            percent !== undefined
+              ? h('span', { className: 'mrel-usage-num' }, `${percent.toFixed(digits)}%`)
+              : h('span', { className: 'mrel-usage-num' }, status === 'loading' ? '…' : '—'),
+          ),
+        ),
+        mounted,
       )
     }
 
