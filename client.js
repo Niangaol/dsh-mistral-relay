@@ -274,14 +274,11 @@ window.__ModuleLoader__.load({
 .mrel-stat{background:var(--mrel-surface);border:1px solid var(--mrel-line);border-radius:12px;padding:12px}
 .mrel-stat-k{font-size:11px;color:var(--mrel-soft);letter-spacing:.02em;text-transform:uppercase}
 .mrel-stat-v{font-size:19px;font-weight:650;margin-top:4px;letter-spacing:-.02em}
-.mrel-pill{display:inline-flex;align-items:center;gap:7px;height:26px;padding:0 10px;border-radius:999px;
-  border:1px solid var(--mrel-line);background:var(--mrel-surface);color:var(--mrel-soft);font-size:11.5px;
-  cursor:pointer;transition:color .15s,border-color .15s}
-.mrel-pill:hover{color:var(--mrel-fg);border-color:color-mix(in oklab,currentColor 30%,transparent)}
-.mrel-pill b{color:var(--mrel-fg);font-weight:600}
-.mrel-pill-bar{width:34px;height:4px;border-radius:999px;background:color-mix(in oklab,currentColor 18%,transparent);
-  overflow:hidden}
-.mrel-pill-bar i{display:block;height:100%;background:var(--mrel-ok);border-radius:999px}
+.mrel-usage{display:inline-flex;align-items:center;gap:6px;padding:0 6px;margin:0;border:0;
+  background:transparent;color:inherit;font:inherit;font-size:.82em;line-height:1.2;opacity:.62;
+  cursor:pointer;border-radius:6px;transition:opacity .15s}
+.mrel-usage:hover,.mrel-usage[data-open="1"]{opacity:1}
+.mrel-usage-num{font-variant-numeric:tabular-nums}
 .mrel-panel-pop{position:fixed;right:18px;bottom:64px;width:300px;z-index:60;padding:16px;border-radius:16px;
   border:1px solid var(--mrel-line);background:color-mix(in oklab,currentColor 10%,Canvas);
   background-color:var(--mrel-canvas,Canvas);color:var(--mrel-fg);
@@ -1010,31 +1007,61 @@ window.__ModuleLoader__.load({
       ensureStyle()
       const [meta, setMeta] = useState(null)
       const [open, setOpen] = useState(false)
+      const rootRef = useRef(null)
+
       useEffect(() => {
         let alive = true
-        void getJSON('/meta').then((next) => { if (alive) setMeta(next) }).catch(() => {})
+        void getJSON('/meta')
+          .then((next) => { if (alive) setMeta(next) })
+          .catch(() => {})
         return () => { alive = false }
       }, [])
+
+      // 展开后 6 秒自动收起；点外面或按 Esc 也收起。
+      useEffect(() => {
+        if (!open) return undefined
+        const timer = setTimeout(() => setOpen(false), 6000)
+        const onPointer = (event) => {
+          if (rootRef.current !== null && !rootRef.current.contains(event.target)) setOpen(false)
+        }
+        const onKey = (event) => { if (event.key === 'Escape') setOpen(false) }
+        document.addEventListener('mousedown', onPointer)
+        document.addEventListener('keydown', onKey)
+        return () => {
+          clearTimeout(timer)
+          document.removeEventListener('mousedown', onPointer)
+          document.removeEventListener('keydown', onKey)
+        }
+      }, [open])
+
       const { status, usage } = useUsage(ctx, meta, undefined)
-      if (meta === null) return null
-      if (meta.usage?.display === 'off') return null
-      const win = windowOf(usage, meta.usage?.barBudget ?? 'vibe')
+      if (meta?.usage?.display === 'off') return null
+
+      const win = windowOf(usage, meta?.usage?.barBudget ?? 'vibe')
       const percent = typeof win?.percent === 'number' ? Math.max(0, Math.min(100, win.percent)) : undefined
-      const tone = toneOf(percent) ?? 'ok'
+      const label = usage?.plan ?? 'Mistral'
+      const digits = percent !== undefined && percent < 10 ? 2 : 1
+      const title = win
+        ? `${win.label ?? label} ${percent?.toFixed(digits)}% · ${money2(win.used, win.unit)} / ${money2(win.total, win.unit)}`
+        : t('pillTitle')
+
       return h(
         'div',
-        { style: { position: 'relative', display: 'inline-flex' } },
-        h('button', {
-          className: 'mrel-pill',
-          type: 'button',
-          title: win ? `${win.label ?? ''} ${percent?.toFixed(2) ?? '—'}%` : t('pillTitle'),
-          onClick: () => setOpen((current) => !current),
-        },
-          h('span', { className: 'mrel-dot', style: { background: percent === undefined ? 'var(--mrel-soft)' : `var(--mrel-${tone === 'ok' ? 'ok' : tone})` } }),
-          h('span', null, usage?.plan ?? 'Mistral'),
-          percent === undefined
-            ? h('span', { className: 'mrel-hint' }, status === 'loading' ? '…' : '—')
-            : h('span', { className: 'mrel-pill-bar' }, h('i', { style: { width: `${percent}%`, background: `var(--mrel-${tone === 'ok' ? 'ok' : tone})` } })),
+        { ref: rootRef, style: { position: 'relative', display: 'inline-flex' } },
+        h(
+          'button',
+          {
+            type: 'button',
+            className: 'mrel-usage',
+            'data-open': open ? '1' : '0',
+            title,
+            'aria-expanded': open ? 'true' : 'false',
+            onClick: () => setOpen((current) => !current),
+          },
+          h('span', null, label),
+          percent !== undefined
+            ? h('span', { className: 'mrel-usage-num' }, `${percent.toFixed(digits)}%`)
+            : h('span', { className: 'mrel-usage-num' }, status === 'loading' ? '…' : '—'),
         ),
         open
           ? h('div', { className: 'mrel mrel-panel-pop' },
